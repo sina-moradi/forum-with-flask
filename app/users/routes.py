@@ -1,9 +1,11 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, session
+from flask_login import login_user, logout_user
 
 from app.users.models import User, SmsCode
 from app.users.forms import UserCodeVerifyForm, UserRegistrationForm
 from app.extentions import sms_api
 from app.extentions import db
+from .forms import UserLoginForm
 
 import random
 import datetime
@@ -20,11 +22,11 @@ def register():
         session['phone_number'] = form.phone.data
         params = {'sender':'', 'receptor': int(form.phone.data), 'message': rand_num}
         sms_api.sms_send(params)
-        code = SmsCode(code=rand_num, phone=form.phone.data,
+        code = SmsCode(number=rand_num, phone=form.phone.data,
                        expire_time=datetime.datetime.now() + datetime.timedelta(minutes=5))
         db.session.add(code)
         db.session.commit()
-        return redirect('users.verify')
+        return redirect(url_for('users.verify'))
     return render_template('user/register.html', form=form)
 
 
@@ -45,3 +47,21 @@ def verify():
             db.session.commit()
             flash('created account', 'info')
     return render_template('user/verify.html', form=form)
+
+
+@blueprint.route('/login', methods=['post', 'get'])
+def login():
+    form = UserLoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(phone=form.phone.data).first()
+        login_user(user)
+        flash('you logged in')
+        return redirect('/')
+    return render_template('user/login.html', form=form)
+
+
+@blueprint.route('/logout', methods=['get', 'post'])
+def logout():
+    logout_user()
+    flash('you logged out')
+    return redirect('/')
